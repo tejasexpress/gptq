@@ -248,7 +248,7 @@ if __name__ == '__main__':
         help='LlaMa model to load; pass location of hugginface converted checkpoint.'
     )
     parser.add_argument(
-        'dataset', type=str, choices=['wikitext2', 'ptb', 'c4'],
+        'dataset', type=str, choices=['slimpyjama', 'ptb', 'c4'],
         help='Where to extract calibration data from.'
     )
     parser.add_argument(
@@ -256,7 +256,7 @@ if __name__ == '__main__':
         type=int, default=0, help='Seed for sampling the calibration data.'
     )
     parser.add_argument(
-        '--nsamples', type=int, default=128,
+        '--nsamples', type=int, default=1024,
         help='Number of calibration data samples.'
     )
     parser.add_argument(
@@ -309,12 +309,12 @@ if __name__ == '__main__':
         args.dataset, nsamples=args.nsamples, seed=args.seed, model=args.model, seqlen=model.seqlen
     )
 
-    if args.wbits < 16 and not args.nearest:
+    if args.wbits < 17 and not args.nearest:
         tick = time.time()
         quantizers = llama_sequential(model, dataloader, DEV)
         print(time.time() - tick)
 
-    datasets = ['c4'] 
+    datasets = ['slimpyjama'] 
     if args.new_eval:
         datasets = ['wikitext2', 'ptb-new', 'c4-new']
     for dataset in datasets:
@@ -323,6 +323,9 @@ if __name__ == '__main__':
         )
         print(dataset)
         llama_eval(model, testloader, DEV)
+    
+    print(model)
+    print(quantizers)
 
     if args.save:
         llama_pack3(model, quantizers)
