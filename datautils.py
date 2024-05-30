@@ -97,7 +97,56 @@ def get_c4(nsamples, seed, seqlen, model):
             self.input_ids = input_ids
     valenc = TokenizerWrapper(valenc)
 
-    return trainloader, valenc 
+    return trainloader, valenc
+
+def get_slimpyjama(nsamples, seed, seqlen, model):
+    from datasets import load_dataset
+    traindata = load_dataset(
+        'cerebras/SlimPajama-627B', data_files={'train': ['train/chunk1/example_train_1015.jsonl.zst',
+                                                          'train/chunk1/example_train_1017.jsonl.zst']}, split='train'
+    )
+    valdata = load_dataset(
+        'cerebras/SlimPajama-627B', data_files={'validation': 'validation/chunk1/example_holdout_0.jsonl.zst'}, split='validation'
+    )
+
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+
+    import random
+    random.seed(seed)
+    trainloader = []
+    for _ in range(nsamples):
+        while True:
+            i = random.randint(0, len(traindata) - 1)
+            trainenc = tokenizer(traindata[i]['text'], return_tensors='pt')
+            if trainenc.input_ids.shape[1] > seqlen:
+                break
+        i = random.randint(0, trainenc.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        inp = trainenc.input_ids[:, i:j]
+        tar = inp.clone()
+        tar[:, :-1] = -100
+        trainloader.append((inp, tar))
+
+    import random
+    random.seed(0)
+    valenc = []
+    for _ in range(256):
+        while True:
+            i = random.randint(0, len(valdata) - 1)
+            tmp = tokenizer(valdata[i]['text'], return_tensors='pt')
+            if tmp.input_ids.shape[1] > seqlen:
+                break
+        i = random.randint(0, tmp.input_ids.shape[1] - seqlen - 1)
+        j = i + seqlen
+        valenc.append(tmp.input_ids[:, i:j])
+    valenc = torch.hstack(valenc)
+    class TokenizerWrapper:
+        def __init__(self, input_ids):
+            self.input_ids = input_ids
+    valenc = TokenizerWrapper(valenc)
+
+    return trainloader, valenc
 
 def get_ptb_new(nsamples, seed, seqlen, model):
     from datasets import load_dataset
@@ -160,6 +209,7 @@ def get_c4_new(nsamples, seed, seqlen, model):
     return trainloader, valenc
 
 
+
 def get_loaders(
     name, nsamples=128, seed=0, seqlen=2048, model=''
 ):
@@ -173,3 +223,6 @@ def get_loaders(
         if 'new' in name:
             return get_c4_new(nsamples, seed, seqlen, model)
         return get_c4(nsamples, seed, seqlen, model)
+    if 'slimpyjama' in name:
+        return get_slimpyjama(nsamples, seed, seqlen, model)
+        
